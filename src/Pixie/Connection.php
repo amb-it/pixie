@@ -82,15 +82,16 @@ class Connection
     /**
      * Create the connection adapter
      */
-    protected function connect()
+    public function connect()
     {
-        // Build a database connection if we don't have one connected
-
+        // Close old connection
+        $this->pdoInstance = null;
+        
         $adapter = '\\Pixie\\ConnectionAdapters\\' . ucfirst(strtolower($this->adapter));
-
         $adapterInstance = $this->container->build($adapter, array($this->container));
 
         $pdo = $adapterInstance->connect($this->adapterConfig);
+        
         $this->setPdoInstance($pdo);
 
         // Preserve the first database connection with a static property
