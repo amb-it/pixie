@@ -30,6 +30,7 @@ $config = array(
                 PDO::ATTR_TIMEOUT => 5,
                 PDO::ATTR_EMULATE_PREPARES => false,
             ),
+	    'reconnect_timeout' => 3600 // Reconnect on idle (suitable for php daemons)
         );
 
 new \Pixie\Connection('mysql', $config, 'QB');
