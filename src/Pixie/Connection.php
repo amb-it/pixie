@@ -1,5 +1,6 @@
 <?php namespace Pixie;
 
+use PDO;
 use Pixie\QueryBuilder\Raw;
 use Viocon\Container;
 
@@ -22,7 +23,7 @@ class Connection
     protected $adapterConfig;
 
     /**
-     * @var \PDO
+     * @var PDO
      */
     protected $pdoInstance;
 
@@ -37,6 +38,12 @@ class Connection
     protected $eventHandler;
 
     /**
+     * Unix ts of last query
+     * @var
+     */
+    protected $last_query;
+
+    /**
      * @param               $adapter
      * @param array         $adapterConfig
      * @param null|string   $alias
@@ -44,7 +51,7 @@ class Connection
      */
     public function __construct($adapter, array $adapterConfig, $alias = null, Container $container = null)
     {
-        $container = $container ? : new Container();
+        $container = $container ?: new Container();
 
         $this->container = $container;
 
@@ -60,13 +67,12 @@ class Connection
 
     /**
      * Create an easily accessible query builder alias
-     *
      * @param $alias
      */
     public function createAlias($alias)
     {
         class_alias('Pixie\\AliasFacade', $alias);
-        $builder = $this->container->build('\\Pixie\\QueryBuilder\\QueryBuilderHandler', array($this));
+        $builder = $this->container->build('\\Pixie\\QueryBuilder\\QueryBuilderHandler', [$this]);
         AliasFacade::setQueryBuilderInstance($builder);
     }
 
@@ -75,7 +81,7 @@ class Connection
      */
     public function getQueryBuilder()
     {
-        return $this->container->build('\\Pixie\\QueryBuilder\\QueryBuilderHandler', array($this));
+        return $this->container->build('\\Pixie\\QueryBuilder\\QueryBuilderHandler', [$this]);
     }
 
 
@@ -86,33 +92,54 @@ class Connection
     {
         // Close old connection
         $this->pdoInstance = null;
-        
+
         $adapter = '\\Pixie\\ConnectionAdapters\\' . ucfirst(strtolower($this->adapter));
-        $adapterInstance = $this->container->build($adapter, array($this->container));
+        $adapterInstance = $this->container->build($adapter, [$this->container]);
 
         $pdo = $adapterInstance->connect($this->adapterConfig);
-        
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
         $this->setPdoInstance($pdo);
 
         // Preserve the first database connection with a static property
         if (!static::$storedConnection) {
             static::$storedConnection = $this;
         }
+
+        $this->last_query = time();
     }
 
     /**
-     * @param \PDO $pdo
-     *
+     * Set reconnect_timeout as connection option to fix timeout troubles like:
+     * MySQL error 2006: mysql server has gone away
+     * Works only if reconnect_timeout is set
+     */
+    public function maybeReconnect()
+    {
+        if (empty($this->adapterConfig['reconnect_timeout']) || empty($this->last_query)) {
+            return;
+        }
+
+        if (time() - $this->last_query >= $this->adapterConfig['reconnect_timeout']) {
+            $this->connect();
+        }
+
+        $this->last_query = time();
+    }
+
+    /**
+     * @param PDO $pdo
      * @return $this
      */
-    public function setPdoInstance(\PDO $pdo)
+    public function setPdoInstance(PDO $pdo)
     {
         $this->pdoInstance = $pdo;
+
         return $this;
     }
 
     /**
-     * @return \PDO
+     * @return PDO
      */
     public function getPdoInstance()
     {
@@ -121,12 +148,12 @@ class Connection
 
     /**
      * @param $adapter
-     *
      * @return $this
      */
     public function setAdapter($adapter)
     {
         $this->adapter = $adapter;
+
         return $this;
     }
 
@@ -140,12 +167,12 @@ class Connection
 
     /**
      * @param array $adapterConfig
-     *
      * @return $this
      */
     public function setAdapterConfig(array $adapterConfig)
     {
         $this->adapterConfig = $adapterConfig;
+
         return $this;
     }
 

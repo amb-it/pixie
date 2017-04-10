@@ -66,6 +66,7 @@ class TestCase extends \PHPUnit_Framework_TestCase {
         $eventHandler = new EventHandler();
 
         $this->mockConnection = m::mock('\\Pixie\\Connection');
+        $this->mockConnection->shouldReceive('maybeReconnect');
         $this->mockConnection->shouldReceive('getPdoInstance')->andReturn($this->mockPdo);
         $this->mockConnection->shouldReceive('getAdapter')->andReturn('mysql');
         $this->mockConnection->shouldReceive('getAdapterConfig')->andReturn(array('prefix' => 'cb_'));
